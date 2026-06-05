@@ -1,0 +1,7 @@
+com\falconmute\commands\MuteCommand.class
+com\falconmute\voice\VoiceChatRegistrar.class
+com\falconmute\voice\VoiceChatIntegration.class
+com\falconmute\FalconMute.class
+com\falconmute\commands\UnmuteCommand.class
+com\falconmute\FalconMute$MuteInfo.class
+com\falconmute\listeners\ChatListener.class

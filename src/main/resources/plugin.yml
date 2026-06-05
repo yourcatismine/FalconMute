@@ -1,0 +1,38 @@
+name: FalconMute
+version: 1.0
+author: Kiarers
+main: com.falconmute.FalconMute
+api-version: '1.21'
+folia-supported: true
+description: By Kiarers
+softdepend: [voicechat]
+
+commands:
+  mute:
+    description: Mute a player's chat or voice.
+    usage: /mute <chat|voice> <player> [reason]
+    permission: falconmute.mute
+  unmute:
+    description: Unmute a player's chat or voice.
+    usage: /unmute <chat|voice> <player>
+    permission: falconmute.unmute
+
+permissions:
+  falconmute.mute:
+    description: Allows using the base /mute command
+    default: op
+  falconmute.unmute:
+    description: Allows using the base /unmute command
+    default: op
+  falconmute.chatmute:
+    description: Allows muting a player's chat
+    default: op
+  falconmute.voicemute:
+    description: Allows muting a player's voice
+    default: op
+  falconmute.chatunmute:
+    description: Allows unmuting a player's chat
+    default: op
+  falconmute.voiceunmute:
+    description: Allows unmuting a player's voice
+    default: op
