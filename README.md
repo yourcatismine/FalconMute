@@ -42,7 +42,7 @@ FalconMute is a standalone, lightweight, and Folia-supported mute management plu
 - `falconmute.ipmute` - Allows usage of the base `/ipmute` command.
 
 ## Installation
-1. Place `FalconMute-1.0.jar` into your server's `plugins/` directory.
+1. Place `FalconMute-1.2.jar` into your server's `plugins/` directory.
 2. *(Optional but Recommended)* Ensure [Simple Voice Chat](https://modrinth.com/plugin/simple-voice-chat) is installed to utilize the voice muting features.
 3. Restart or start your server.
 
