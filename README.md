@@ -11,13 +11,16 @@ FalconMute is a standalone, lightweight, and Folia-supported mute management plu
 - **Duration Support:** Standardized duration parsing (e.g., `10s`, `1m`, `1d`, `1y`) allows you to easily issue temporary mutes.
 - **Data Persistence:** Mutes are saved individually per-player in YAML files (`plugins/FalconMute/data/chat/` and `plugins/FalconMute/data/voice/`) preventing data loss on server restarts.
 - **Smart Chat Filtering:** Blocks regular chat as well as private messaging commands (e.g., `/msg`, `/tell`, `/w`, `/r`, `/reply`, `/pm`, `/whisper`, `/me`) for muted players.
-- **Folia Support:** Built against the modern Paper/Spigot 26.1 API and supports Folia architecture out of the box.
+- **IP Tracker & Muting:** Safely tracks player IPs in the background and allows admins to mute all accounts associated with an IP address or offline player instantly.
+- **Interactive Mute Lists:** View all currently muted players using interactive, paginated lists with clickable chat navigation.
+- **Strict Validation:** Automatically verifies if a player has joined the server before and gracefully prevents errors when applying mutes.
+- **Folia Support:** Built against the modern Paper/Spigot 26.1 API. Heavy operations like offline player lookups and mass IP muting run 100% asynchronously to ensure zero TPS drops.
 
 ## Commands
 
 ### `/mute`
-**Usage:** `/mute <chat|voice> <player> <duration> [reason]`
-**Description:** Mute a player for a specific duration. The reason will default to "No Reason Provided" if left blank.
+**Usage:** `/mute <chat|voice|list> <player|page> [duration] [reason]`
+**Description:** Mute a player for a specific duration, or view the paginated list of normally muted players. The reason defaults to "No Reason Provided" if left blank.
 **Tab-Completion:** Fully supported for type, online players, and common duration formats.
 
 ### `/unmute`
@@ -25,8 +28,8 @@ FalconMute is a standalone, lightweight, and Folia-supported mute management plu
 **Description:** Instantly removes a player's mute and deletes their persistent mute data.
 
 ### `/ipmute`
-**Usage:** `/ipmute <chat|voice|remove> <player|ip> [duration] [reason]`
-**Description:** Mute an IP address or all accounts associated with a player. Can target chat or voice, or remove all mutes for the given IP.
+**Usage:** `/ipmute <chat|voice|remove|list> <player|ip|page> [duration] [reason]`
+**Description:** Mute an IP address or all accounts associated with a player. Can target chat or voice, remove all mutes for the given IP, or list players caught by an IP mute with interactive pagination.
 
 ## Permissions
 
