@@ -16,6 +16,10 @@ commands:
     description: Unmute a player's chat or voice.
     usage: /unmute <chat|voice> <player>
     permission: falconmute.unmute
+  ipmute:
+    description: IP Mute a player or IP address.
+    usage: /ipmute <chat|voice|remove> <player|ip> [duration] [reason]
+    permission: falconmute.ipmute
 
 permissions:
   falconmute.mute:

@@ -35,12 +35,29 @@ public class MuteCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        if (args.length < 3) {
+        if (args.length < 1) {
+            if (sender instanceof Player) ((Player) sender).playSound(((Player) sender).getLocation(), org.bukkit.Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
+            return true;
+        }
+        
+        if (!args[0].equalsIgnoreCase("list") && args.length < 3) {
             if (sender instanceof Player) ((Player) sender).playSound(((Player) sender).getLocation(), org.bukkit.Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
             return true;
         }
 
         String type = args[0].toLowerCase();
+        
+        if (type.equals("list")) {
+            int page = 1;
+            if (args.length >= 2) {
+                try {
+                    page = Integer.parseInt(args[1]);
+                } catch (NumberFormatException ignored) {}
+            }
+            plugin.sendMuteList(sender, page, label, false);
+            return true;
+        }
+
         if (!type.equals("chat") && !type.equals("voice")) {
             if (sender instanceof Player) ((Player) sender).playSound(((Player) sender).getLocation(), org.bukkit.Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
             return true;
@@ -58,57 +75,70 @@ public class MuteCommand implements CommandExecutor, TabCompleter {
         }
 
         long expiry = System.currentTimeMillis() + durationMs;
-        Player target = Bukkit.getPlayer(targetName);
-        UUID targetUUID;
-        String finalTargetName;
+        
+        plugin.runAsync(() -> {
+            Player target = Bukkit.getPlayer(targetName);
+            UUID targetUUID;
+            String finalTargetName;
 
-        if (target != null) {
-            targetUUID = target.getUniqueId();
-            finalTargetName = target.getName();
-        } else {
-            targetUUID = Bukkit.getOfflinePlayer(targetName).getUniqueId();
-            finalTargetName = targetName;
-        }
+            if (target != null) {
+                targetUUID = target.getUniqueId();
+                finalTargetName = target.getName();
+            } else {
+                org.bukkit.OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(targetName);
+                if (!offlinePlayer.hasPlayedBefore() && !offlinePlayer.isOnline()) {
+                    String msg = ChatColor.RED + "That player does not exist.";
+                    sender.sendMessage(msg);
+                    if (sender instanceof Player) {
+                        ((Player) sender).spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(msg));
+                        ((Player) sender).playSound(((Player) sender).getLocation(), org.bukkit.Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
+                    }
+                    return;
+                }
+                targetUUID = offlinePlayer.getUniqueId();
+                finalTargetName = targetName;
+            }
 
-        if (type.equals("voice")) {
-            if (!sender.hasPermission("falconmute.voicemute")) {
-                if (sender instanceof Player) ((Player) sender).playSound(((Player) sender).getLocation(), org.bukkit.Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
-                return true;
+            if (type.equals("voice")) {
+                if (!sender.hasPermission("falconmute.voicemute")) {
+                    if (sender instanceof Player) ((Player) sender).playSound(((Player) sender).getLocation(), org.bukkit.Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
+                    return;
+                }
+                if (plugin.isVoiceMuted(targetUUID)) {
+                    sender.sendMessage(ChatColor.RED + "That player is already voice muted.");
+                    if (sender instanceof Player) ((Player) sender).playSound(((Player) sender).getLocation(), org.bukkit.Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
+                    return;
+                }
+                plugin.setVoiceMuted(targetUUID, true, expiry, reason, false);
+            } else {
+                if (!sender.hasPermission("falconmute.chatmute")) {
+                    if (sender instanceof Player) ((Player) sender).playSound(((Player) sender).getLocation(), org.bukkit.Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
+                    return;
+                }
+                if (plugin.isChatMuted(targetUUID)) {
+                    sender.sendMessage(ChatColor.RED + "That player is already chat muted.");
+                    if (sender instanceof Player) ((Player) sender).playSound(((Player) sender).getLocation(), org.bukkit.Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
+                    return;
+                }
+                plugin.setChatMuted(targetUUID, true, expiry, reason, false);
             }
-            if (plugin.isVoiceMuted(targetUUID)) {
-                sender.sendMessage(ChatColor.RED + "That player is already voice muted.");
-                if (sender instanceof Player) ((Player) sender).playSound(((Player) sender).getLocation(), org.bukkit.Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
-                return true;
-            }
-            plugin.setVoiceMuted(targetUUID, true, expiry, reason);
-        } else {
-            if (!sender.hasPermission("falconmute.chatmute")) {
-                if (sender instanceof Player) ((Player) sender).playSound(((Player) sender).getLocation(), org.bukkit.Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
-                return true;
-            }
-            if (plugin.isChatMuted(targetUUID)) {
-                sender.sendMessage(ChatColor.RED + "That player is already chat muted.");
-                if (sender instanceof Player) ((Player) sender).playSound(((Player) sender).getLocation(), org.bukkit.Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
-                return true;
-            }
-            plugin.setChatMuted(targetUUID, true, expiry, reason);
-        }
 
-        String typeStr = type.equals("chat") ? "chat" : "voice";
-        String adminMsg = ChatColor.translateAlternateColorCodes('&',
-                "&7You muted &d" + finalTargetName + "&7's " + typeStr + " for &f" + durationStr + "&7 Reason:&c " + reason);
-        sender.sendMessage(adminMsg);
-        if (sender instanceof Player) {
-            ((Player) sender).spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(adminMsg));
-        }
+            String typeStr = type.equals("chat") ? "chat" : "voice";
+            String adminMsg = ChatColor.translateAlternateColorCodes('&',
+                    "&7You muted &d" + finalTargetName + "&7's " + typeStr + " for &f" + durationStr + "&7 Reason:&c " + reason);
+            sender.sendMessage(adminMsg);
+            if (sender instanceof Player) {
+                ((Player) sender).spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(adminMsg));
+            }
 
-        if (target != null && target.isOnline()) {
-            String targetMsg = ChatColor.translateAlternateColorCodes('&',
-                    "&7Your " + typeStr + " has been muted for &f" + durationStr + "&7 Reason:&c " + reason);
-            target.sendMessage(targetMsg);
-            target.spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(targetMsg));
-            target.playSound(target.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1.0f, 1.0f);
-        }
+            if (target != null && target.isOnline()) {
+                String targetMsg = ChatColor.translateAlternateColorCodes('&',
+                        "&7Your " + typeStr + " has been muted for &f" + durationStr + "&7 Reason:&c " + reason);
+                target.sendMessage(targetMsg);
+                target.spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(targetMsg));
+                target.playSound(target.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1.0f, 1.0f);
+            }
+        });
 
         return true;
     }
@@ -145,11 +175,11 @@ public class MuteCommand implements CommandExecutor, TabCompleter {
     @Override
     public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, @NotNull String[] args) {
         if (args.length == 1) {
-            return Arrays.asList("chat", "voice").stream()
+            return Arrays.asList("chat", "voice", "list").stream()
                     .filter(s -> s.startsWith(args[0].toLowerCase()))
                     .collect(Collectors.toList());
         }
-        if (args.length == 2) {
+        if (args.length == 2 && !args[0].equalsIgnoreCase("list")) {
             List<String> completions = new ArrayList<>();
             for (Player p : Bukkit.getOnlinePlayers()) {
                 if (p.getName().toLowerCase().startsWith(args[1].toLowerCase())) {

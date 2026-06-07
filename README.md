@@ -24,6 +24,10 @@ FalconMute is a standalone, lightweight, and Folia-supported mute management plu
 **Usage:** `/unmute <chat|voice> <player>`
 **Description:** Instantly removes a player's mute and deletes their persistent mute data.
 
+### `/ipmute`
+**Usage:** `/ipmute <chat|voice|remove> <player|ip> [duration] [reason]`
+**Description:** Mute an IP address or all accounts associated with a player. Can target chat or voice, or remove all mutes for the given IP.
+
 ## Permissions
 
 - `falconmute.mute` - Allows usage of the base `/mute` command.
@@ -32,6 +36,7 @@ FalconMute is a standalone, lightweight, and Folia-supported mute management plu
 - `falconmute.unmute` - Allows usage of the base `/unmute` command.
 - `falconmute.chatunmute` - Allows unmuting a player's chat.
 - `falconmute.voiceunmute` - Allows unmuting a player's voice.
+- `falconmute.ipmute` - Allows usage of the base `/ipmute` command.
 
 ## Installation
 1. Place `FalconMute-1.0.jar` into your server's `plugins/` directory.

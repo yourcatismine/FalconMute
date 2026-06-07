@@ -47,57 +47,69 @@ public class UnmuteCommand implements CommandExecutor, TabCompleter {
         }
 
         String targetName = args[1];
-        Player target = Bukkit.getPlayer(targetName);
-        UUID targetUUID;
-        String finalTargetName;
+        plugin.runAsync(() -> {
+            Player target = Bukkit.getPlayer(targetName);
+            UUID targetUUID;
+            String finalTargetName;
 
-        if (target != null) {
-            targetUUID = target.getUniqueId();
-            finalTargetName = target.getName();
-        } else {
-            targetUUID = Bukkit.getOfflinePlayer(targetName).getUniqueId();
-            finalTargetName = targetName;
-        }
-
-        boolean isVoice = type.equals("voice");
-        if (isVoice) {
-            if (!sender.hasPermission("falconmute.voiceunmute")) {
-                if (sender instanceof Player) ((Player) sender).playSound(((Player) sender).getLocation(), org.bukkit.Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
-                return true;
-            }
-            if (!plugin.isVoiceMuted(targetUUID)) {
-                sender.sendMessage(ChatColor.RED + finalTargetName + " is not voice muted.");
-                if (sender instanceof Player) ((Player) sender).playSound(((Player) sender).getLocation(), org.bukkit.Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
-                return true;
-            }
-
-            plugin.setVoiceMuted(targetUUID, false, 0, null);
-        } else {
-            if (!sender.hasPermission("falconmute.chatunmute")) {
-                if (sender instanceof Player) ((Player) sender).playSound(((Player) sender).getLocation(), org.bukkit.Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
-                return true;
-            }
-            if (!plugin.isChatMuted(targetUUID)) {
-                sender.sendMessage(ChatColor.RED + finalTargetName + " is not chat muted.");
-                if (sender instanceof Player) ((Player) sender).playSound(((Player) sender).getLocation(), org.bukkit.Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
-                return true;
+            if (target != null) {
+                targetUUID = target.getUniqueId();
+                finalTargetName = target.getName();
+            } else {
+                org.bukkit.OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(targetName);
+                if (!offlinePlayer.hasPlayedBefore() && !offlinePlayer.isOnline()) {
+                    String msg = ChatColor.RED + "That player does not exist.";
+                    sender.sendMessage(msg);
+                    if (sender instanceof Player) {
+                        ((Player) sender).spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(msg));
+                        ((Player) sender).playSound(((Player) sender).getLocation(), org.bukkit.Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
+                    }
+                    return;
+                }
+                targetUUID = offlinePlayer.getUniqueId();
+                finalTargetName = targetName;
             }
 
-            plugin.setChatMuted(targetUUID, false, 0, null);
-        }
+            boolean isVoice = type.equals("voice");
+            if (isVoice) {
+                if (!sender.hasPermission("falconmute.voiceunmute")) {
+                    if (sender instanceof Player) ((Player) sender).playSound(((Player) sender).getLocation(), org.bukkit.Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
+                    return;
+                }
+                if (!plugin.isVoiceMuted(targetUUID)) {
+                    sender.sendMessage(ChatColor.RED + finalTargetName + " is not voice muted.");
+                    if (sender instanceof Player) ((Player) sender).playSound(((Player) sender).getLocation(), org.bukkit.Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
+                    return;
+                }
 
-        String typeStr = isVoice ? "voice " : "";
-        String adminMsg = ChatColor.translateAlternateColorCodes('&', "&d" + finalTargetName + "&7 has been " + typeStr + "unmuted.");
-        sender.sendMessage(adminMsg);
-        if (sender instanceof Player) {
-            ((Player) sender).spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(adminMsg));
-        }
+                plugin.setVoiceMuted(targetUUID, false, 0, null, false);
+            } else {
+                if (!sender.hasPermission("falconmute.chatunmute")) {
+                    if (sender instanceof Player) ((Player) sender).playSound(((Player) sender).getLocation(), org.bukkit.Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
+                    return;
+                }
+                if (!plugin.isChatMuted(targetUUID)) {
+                    sender.sendMessage(ChatColor.RED + finalTargetName + " is not chat muted.");
+                    if (sender instanceof Player) ((Player) sender).playSound(((Player) sender).getLocation(), org.bukkit.Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
+                    return;
+                }
 
-        if (target != null && target.isOnline()) {
-            String targetMsg = ChatColor.translateAlternateColorCodes('&', "&7You have been " + typeStr + "unmuted.");
-            target.sendMessage(targetMsg);
-            target.spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(targetMsg));
-        }
+                plugin.setChatMuted(targetUUID, false, 0, null, false);
+            }
+
+            String typeStr = isVoice ? "voice " : "";
+            String adminMsg = ChatColor.translateAlternateColorCodes('&', "&d" + finalTargetName + "&7 has been " + typeStr + "unmuted.");
+            sender.sendMessage(adminMsg);
+            if (sender instanceof Player) {
+                ((Player) sender).spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(adminMsg));
+            }
+
+            if (target != null && target.isOnline()) {
+                String targetMsg = ChatColor.translateAlternateColorCodes('&', "&7You have been " + typeStr + "unmuted.");
+                target.sendMessage(targetMsg);
+                target.spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(targetMsg));
+            }
+        });
 
         return true;
     }

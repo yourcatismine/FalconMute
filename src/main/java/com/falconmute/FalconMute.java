@@ -4,22 +4,26 @@ import com.falconmute.commands.MuteCommand;
 import com.falconmute.commands.UnmuteCommand;
 import org.bukkit.plugin.java.JavaPlugin;
 import java.util.UUID;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class FalconMute extends JavaPlugin {
 
     public static class MuteInfo {
         public final long expiry;
         public final String reason;
-        public MuteInfo(long expiry, String reason) {
+        public final boolean isIpMute;
+        public MuteInfo(long expiry, String reason, boolean isIpMute) {
             this.expiry = expiry;
             this.reason = reason;
+            this.isIpMute = isIpMute;
         }
     }
 
-    private final Map<UUID, MuteInfo> voiceMutes = new HashMap<>();
-    private final Map<UUID, MuteInfo> chatMutes = new HashMap<>();
+    private final Map<UUID, MuteInfo> voiceMutes = new ConcurrentHashMap<>();
+    private final Map<UUID, MuteInfo> chatMutes = new ConcurrentHashMap<>();
+
+    private com.falconmute.listeners.IPTracker ipTracker;
 
     @Override
     public void onEnable() {
@@ -41,6 +45,12 @@ public class FalconMute extends JavaPlugin {
             }
         }
 
+        ipTracker = new com.falconmute.listeners.IPTracker(this);
+        getServer().getPluginManager().registerEvents(ipTracker, this);
+
+        getCommand("ipmute").setExecutor(new com.falconmute.commands.IPMuteCommand(this));
+        getCommand("ipmute").setTabCompleter(new com.falconmute.commands.IPMuteCommand(this));
+
         printStartupBanner();
     }
 
@@ -54,7 +64,8 @@ public class FalconMute extends JavaPlugin {
                         org.bukkit.configuration.file.YamlConfiguration config = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(file);
                         long expiry = config.getLong("expiry", 0);
                         String reason = config.getString("reason", "No Reason Provided");
-                        chatMutes.put(uuid, new MuteInfo(expiry, reason));
+                        boolean isIpMute = config.getBoolean("isIpMute", false);
+                        chatMutes.put(uuid, new MuteInfo(expiry, reason, isIpMute));
                     } catch (Exception e) {
                         getLogger().warning("Failed to load chat mute: " + file.getName());
                     }
@@ -71,7 +82,8 @@ public class FalconMute extends JavaPlugin {
                         org.bukkit.configuration.file.YamlConfiguration config = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(file);
                         long expiry = config.getLong("expiry", 0);
                         String reason = config.getString("reason", "No Reason Provided");
-                        voiceMutes.put(uuid, new MuteInfo(expiry, reason));
+                        boolean isIpMute = config.getBoolean("isIpMute", false);
+                        voiceMutes.put(uuid, new MuteInfo(expiry, reason, isIpMute));
                     } catch (Exception e) {
                         getLogger().warning("Failed to load voice mute: " + file.getName());
                     }
@@ -93,6 +105,7 @@ public class FalconMute extends JavaPlugin {
         org.bukkit.configuration.file.YamlConfiguration config = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(file);
         config.set("expiry", info.expiry);
         config.set("reason", info.reason);
+        config.set("isIpMute", info.isIpMute);
         try {
             config.save(file);
         } catch (java.io.IOException e) {
@@ -146,9 +159,9 @@ public class FalconMute extends JavaPlugin {
         return true;
     }
 
-    public void setVoiceMuted(UUID uuid, boolean muted, long expiry, String reason) {
+    public void setVoiceMuted(UUID uuid, boolean muted, long expiry, String reason, boolean isIpMute) {
         if (muted) {
-            MuteInfo info = new MuteInfo(expiry, reason);
+            MuteInfo info = new MuteInfo(expiry, reason, isIpMute);
             voiceMutes.put(uuid, info);
             saveMute(uuid, true, info);
         } else {
@@ -161,14 +174,140 @@ public class FalconMute extends JavaPlugin {
         return getChatMuteInfo(uuid) != null;
     }
 
-    public void setChatMuted(UUID uuid, boolean muted, long expiry, String reason) {
+    public void setChatMuted(UUID uuid, boolean muted, long expiry, String reason, boolean isIpMute) {
         if (muted) {
-            MuteInfo info = new MuteInfo(expiry, reason);
+            MuteInfo info = new MuteInfo(expiry, reason, isIpMute);
             chatMutes.put(uuid, info);
             saveMute(uuid, false, info);
         } else {
             chatMutes.remove(uuid);
             saveMute(uuid, false, null);
         }
+    }
+
+    public com.falconmute.listeners.IPTracker getIPTracker() {
+        return ipTracker;
+    }
+
+    public void runAsync(Runnable runnable) {
+        try {
+            Class.forName("io.papermc.paper.threadedregions.RegionizedServer");
+            getServer().getAsyncScheduler().runNow(this, task -> runnable.run());
+        } catch (ClassNotFoundException e) {
+            getServer().getScheduler().runTaskAsynchronously(this, runnable);
+        }
+    }
+
+    public java.util.Set<UUID> getAllMutedPlayers() {
+        java.util.Set<UUID> muted = new java.util.HashSet<>();
+        for (UUID uuid : chatMutes.keySet()) {
+            if (isChatMuted(uuid) && !chatMutes.get(uuid).isIpMute) muted.add(uuid);
+        }
+        for (UUID uuid : voiceMutes.keySet()) {
+            if (isVoiceMuted(uuid) && !voiceMutes.get(uuid).isIpMute) muted.add(uuid);
+        }
+        return muted;
+    }
+
+    public java.util.Set<UUID> getAllIpMutedPlayers() {
+        java.util.Set<UUID> muted = new java.util.HashSet<>();
+        for (UUID uuid : chatMutes.keySet()) {
+            if (isChatMuted(uuid) && chatMutes.get(uuid).isIpMute) muted.add(uuid);
+        }
+        for (UUID uuid : voiceMutes.keySet()) {
+            if (isVoiceMuted(uuid) && voiceMutes.get(uuid).isIpMute) muted.add(uuid);
+        }
+        return muted;
+    }
+
+    public void sendMuteList(org.bukkit.command.CommandSender sender, int page, String label, boolean isIpMuteList) {
+        runAsync(() -> {
+            java.util.Set<UUID> mutedUuids = isIpMuteList ? getAllIpMutedPlayers() : getAllMutedPlayers();
+            java.util.List<String> names = new java.util.ArrayList<>();
+            for (UUID u : mutedUuids) {
+                String name = org.bukkit.Bukkit.getOfflinePlayer(u).getName();
+                if (name == null) name = u.toString();
+                names.add(name);
+            }
+            java.util.Collections.sort(names);
+
+            int pageSize = 10;
+            int totalPlayers = names.size();
+            int totalPages = (int) Math.ceil((double) totalPlayers / pageSize);
+            if (totalPages == 0) totalPages = 1;
+
+            int finalPage = page;
+            if (finalPage < 1) finalPage = 1;
+            if (finalPage > totalPages) finalPage = totalPages;
+
+            int start = (finalPage - 1) * pageSize;
+            int end = Math.min(start + pageSize, totalPlayers);
+
+            sender.sendMessage(org.bukkit.ChatColor.GRAY + "" + finalPage + " - [" + totalPlayers + "] ========================");
+
+            for (int i = start; i < end; i++) {
+                sender.sendMessage(org.bukkit.ChatColor.WHITE + "" + (i + 1) + ". " + org.bukkit.ChatColor.LIGHT_PURPLE + names.get(i));
+            }
+
+            if (totalPages == 1) {
+                sender.sendMessage(org.bukkit.ChatColor.GRAY + "==========================");
+            } else if (finalPage == 1) {
+                net.md_5.bungee.api.chat.TextComponent next = new net.md_5.bungee.api.chat.TextComponent("[Next] ");
+                next.setColor(net.md_5.bungee.api.ChatColor.AQUA);
+                next.setClickEvent(new net.md_5.bungee.api.chat.ClickEvent(net.md_5.bungee.api.chat.ClickEvent.Action.RUN_COMMAND, "/" + label + " list " + (finalPage + 1)));
+                
+                net.md_5.bungee.api.chat.TextComponent lines = new net.md_5.bungee.api.chat.TextComponent("=======================");
+                lines.setColor(net.md_5.bungee.api.ChatColor.GRAY);
+                
+                net.md_5.bungee.api.chat.TextComponent footer = new net.md_5.bungee.api.chat.TextComponent("");
+                footer.addExtra(next);
+                footer.addExtra(lines);
+                
+                if (sender instanceof org.bukkit.entity.Player) {
+                    ((org.bukkit.entity.Player) sender).spigot().sendMessage(footer);
+                } else {
+                    sender.sendMessage(footer.toLegacyText());
+                }
+            } else if (finalPage > 1 && finalPage < totalPages) {
+                net.md_5.bungee.api.chat.TextComponent prev = new net.md_5.bungee.api.chat.TextComponent("[Previous] ");
+                prev.setColor(net.md_5.bungee.api.ChatColor.AQUA);
+                prev.setClickEvent(new net.md_5.bungee.api.chat.ClickEvent(net.md_5.bungee.api.chat.ClickEvent.Action.RUN_COMMAND, "/" + label + " list " + (finalPage - 1)));
+                
+                net.md_5.bungee.api.chat.TextComponent lines = new net.md_5.bungee.api.chat.TextComponent("==================");
+                lines.setColor(net.md_5.bungee.api.ChatColor.GRAY);
+                
+                net.md_5.bungee.api.chat.TextComponent next = new net.md_5.bungee.api.chat.TextComponent(" [Next]");
+                next.setColor(net.md_5.bungee.api.ChatColor.AQUA);
+                next.setClickEvent(new net.md_5.bungee.api.chat.ClickEvent(net.md_5.bungee.api.chat.ClickEvent.Action.RUN_COMMAND, "/" + label + " list " + (finalPage + 1)));
+
+                net.md_5.bungee.api.chat.TextComponent footer = new net.md_5.bungee.api.chat.TextComponent("");
+                footer.addExtra(prev);
+                footer.addExtra(lines);
+                footer.addExtra(next);
+                
+                if (sender instanceof org.bukkit.entity.Player) {
+                    ((org.bukkit.entity.Player) sender).spigot().sendMessage(footer);
+                } else {
+                    sender.sendMessage(footer.toLegacyText());
+                }
+            } else if (finalPage == totalPages) {
+                net.md_5.bungee.api.chat.TextComponent prev = new net.md_5.bungee.api.chat.TextComponent("[Previous] ");
+                prev.setColor(net.md_5.bungee.api.ChatColor.AQUA);
+                prev.setClickEvent(new net.md_5.bungee.api.chat.ClickEvent(net.md_5.bungee.api.chat.ClickEvent.Action.RUN_COMMAND, "/" + label + " list " + (finalPage - 1)));
+                
+                net.md_5.bungee.api.chat.TextComponent lines = new net.md_5.bungee.api.chat.TextComponent("==================");
+                lines.setColor(net.md_5.bungee.api.ChatColor.GRAY);
+                
+                net.md_5.bungee.api.chat.TextComponent footer = new net.md_5.bungee.api.chat.TextComponent("");
+                footer.addExtra(prev);
+                footer.addExtra(lines);
+                
+                if (sender instanceof org.bukkit.entity.Player) {
+                    ((org.bukkit.entity.Player) sender).spigot().sendMessage(footer);
+                } else {
+                    sender.sendMessage(footer.toLegacyText());
+                }
+            }
+        });
     }
 }

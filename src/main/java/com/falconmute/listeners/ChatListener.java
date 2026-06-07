@@ -76,7 +76,7 @@ public class ChatListener implements Listener {
 
         player.sendMessage(msg);
         player.spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(msg));
-        player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
+      //  player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
     }
 
     private String formatDuration(long seconds) {
